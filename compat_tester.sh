@@ -104,7 +104,12 @@ update_ltp() {
 
 compile_tests() {
 	cd "${LTP_DIR}"
+	
+	./configure CC="${CC}" --prefix="${BINARIES_DIR}"
+	make CC="${CC}"
+	make install CC="${CC}"
 
+	cd "${BASE_DIR}"
 	return
 }
 
@@ -114,3 +119,4 @@ clean() {
 }
 
 update_ltp
+compile_tests
