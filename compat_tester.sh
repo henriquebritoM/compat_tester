@@ -20,7 +20,7 @@ set -e
 # Directory where this script is located. Used as root for other paths.
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Directory where the ltp tests will be cloned
+# Directory where the LTP tests will be cloned
 LTP_DIR="${BASE_DIR}/ltp"
 
 # Base directory for the syscalls subdirectory inside ltp
@@ -55,6 +55,18 @@ fi
 # Currently installed LTP version
 LTP_CURRENT_VERSION="$(cat ltp_version)"
 
+if ! [ -e "${LTP_DIR}" ]; then
+	mkdir "${LTP_DIR}"
+fi
+
+if ! [ -e "${BINARIES_DIR}" ]; then
+	mkdir "${BINARIES_DIR}"
+fi
+
+is_empty_dir() {
+	[ -z "$(ls -A "$1")" ]
+}
+
 is_ltp_latest() {
 	echo "checking if the latest version of LTP is being used"
 
@@ -64,41 +76,46 @@ is_ltp_latest() {
 		return 1
 	fi
 
-	echo "Already in the latest version"
+	echo "Already up to date"
 	return 0
 }
 
+# Clear previous LTP installation
 clear_ltp() {
+	echo "Clearing local LTP files"
+
 	# clears some related vars
 	echo 0 > "${LTP_VERSION_FILE}"
 	LTP_CURRENT_VERSION=0
 
+	# clears the source code
 	rm -rf "${LTP_DIR:?}" 
+
+	# clears the binaries
+	clean
 }
 
+# Installs LTP tests. Clears previous installation, if present
 install_ltp() {
 
-	# LTP_DIR does not exist. Download the latest release and decompress it
-	if ! [ -e "${LTP_DIR}" ]; then
-		echo "Downloading the latest LTP release"
-
-		mkdir "${LTP_DIR}"
-		echo "${LTP_RELEASE}" > "ltp_version"
-		curl -OLs "${LTP_URL}"
-		tar -xf "${LTP_RELEASE}.tar.xz" -C "${LTP_DIR}" --strip-components=1
-		rm "${LTP_RELEASE}.tar.xz" # no reason to keep the tar
-	fi
-}
-
-force_ltp_reinstall() {
+	# No point in installing without clearing residues
 	clear_ltp
-	install_ltp
+
+	echo "Downloading the latest LTP release"
+
+	mkdir "${LTP_DIR}"
+	echo "${LTP_RELEASE}" > "ltp_version"
+	curl -OLs "${LTP_URL}"
+	tar -xf "${LTP_RELEASE}.tar.xz" -C "${LTP_DIR}" --strip-components=1
+	rm "${LTP_RELEASE}.tar.xz" # no reason to keep the tar
 }
 
+# updates LTP to the latest release
 update_ltp() {
 
+	echo "updating LTP files"
 	if ! is_ltp_latest; then
-		force_ltp_reinstall	
+		install_ltp
 	fi
 }
 
@@ -106,17 +123,36 @@ compile_tests() {
 	cd "${LTP_DIR}"
 	
 	./configure CC="${CC}" --prefix="${BINARIES_DIR}"
-	make CC="${CC}"
-	make install CC="${CC}"
+	gmake CC="${CC}"
+	gmake install CC="${CC}"
 
 	cd "${BASE_DIR}"
 	return
 }
 
+# clear only the binaries
 clean() {
-	clear_ltp_dir
 	rm -rf "${BINARIES_DIR:?}/*"
 }
 
-update_ltp
-compile_tests
+main() {
+	for arg in "$@"; do
+		if [ "${arg}" = "--update" ]; then
+			update_ltp
+		elif [ "${arg}" = "--force-reinstall" ]; then
+			install_ltp
+		elif [ "${arg}" = "--clean" ]; then
+			clean
+		fi
+	done
+
+	if is_empty_dir "${LTP_DIR}"; then 
+		install_ltp
+	fi
+
+	if is_empty_dir "${BINARIES_DIR}"; then 
+		compile_tests
+	fi
+}
+
+main "$@"
