@@ -32,6 +32,9 @@ SYSCALL_COMPLEMENT=""
 # Directory where compiled tests will be placed
 BINARIES_DIR="${BASE_DIR}/bin"
 
+# Directory where logs from tested syscalls are stored
+LOGS_DIR="${BASE_DIR}/syscall_logs"
+
 # What compiler to use. Default searches for suse_gcc12-15.5
 CC="/emul/linux/usr/bin/gcc-12"
 
@@ -63,21 +66,21 @@ if ! [ -e "${BINARIES_DIR}" ]; then
 	mkdir "${BINARIES_DIR}"
 fi
 
+if ! [ -e "${LOGS_DIR}" ]; then
+	mkdir "${LOGS_DIR}"
+fi
+
 is_empty_dir() {
 	[ -z "$(ls -A "$1")" ]
 }
 
-is_ltp_latest() {
-	echo "checking if the latest version of LTP is being used"
+# clear only the binaries
+clean() {
+	rm -rf "${BINARIES_DIR:?}"/*
+}
 
-	# Not in the latest release
-	if [ "${LTP_CURRENT_VERSION}" != "${LTP_RELEASE}" ]; then
-		echo "Not in the latest version"
-		return 1
-	fi
-
-	echo "Already up to date"
-	return 0
+clean_logs() {
+	rm -rf "${LOGS_DIR:?}"/*
 }
 
 # Clear previous LTP installation
@@ -93,6 +96,19 @@ clear_ltp() {
 
 	# clears the binaries
 	clean
+}
+
+is_ltp_latest() {
+	echo "checking if the latest version of LTP is being used"
+
+	# Not in the latest release
+	if [ "${LTP_CURRENT_VERSION}" != "${LTP_RELEASE}" ]; then
+		echo "Not in the latest version"
+		return 1
+	fi
+
+	echo "Already up to date"
+	return 0
 }
 
 # Installs LTP tests. Clears previous installation, if present
@@ -130,10 +146,60 @@ compile_tests() {
 	return
 }
 
-# clear only the binaries
-clean() {
-	rm -rf "${BINARIES_DIR:?}/*"
+recreate_logs_dirs() { 
+
+	clean_logs 
+
+	for syscall in "${SYSCALL_DIR}"/*/; do
+		basename="$(basename "${syscall}")"
+		touch "${LOGS_DIR}/${basename}"
+	done
 }
+
+# Some tests requeire args to be passed in the cli
+# this funcion takes the name of the test and returns
+# its args
+get_test_args() {
+		
+	runtest_file="${BINARIES_DIR}/runtest/syscalls"
+
+	args="$(grep "$1" "${runtest_file}" |
+			sed "s/$1 *//g")"
+
+	echo "${args}"
+}
+
+# 
+run_tests() {
+
+	for syscall in "${SYSCALL_DIR}"/*/; do
+		basename="$(basename "${syscall}")"
+		
+		bin_dir="${BINARIES_DIR}/testcases/bin"
+		output_file="${LOGS_DIR}/${basename}"
+
+		for syscall_test in "${bin_dir}/${basename}"*; do
+			
+			test_name="$(basename "${syscall_test}")"
+			args="$(get_test_args "${test_name}")"
+
+			{
+				echo "==================================================",
+				echo "    ${test_name}",
+				echo "==================================================",
+			} >> "${output_file}"
+
+			echo "syscall_test: ${syscall_test}"
+
+			if [ -z "${args}" ]; then
+				"${syscall_test}" 2>&1 | tee -a "${output_file}" || true
+			else 
+				"${syscall_test}" "${args}" 2>&1 | tee -a "${output_file}" || true
+			fi
+		done
+	done
+}
+
 
 main() {
 	for arg in "$@"; do
@@ -153,6 +219,9 @@ main() {
 	if is_empty_dir "${BINARIES_DIR}"; then 
 		compile_tests
 	fi
+
+	recreate_logs_dirs 
+	run_tests 
 }
 
 main "$@"
