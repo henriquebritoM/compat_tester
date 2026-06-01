@@ -139,8 +139,8 @@ compile_tests() {
 	cd "${LTP_DIR}"
 	
 	./configure CC="${CC}" --prefix="${BINARIES_DIR}"
-	gmake CC="${CC}"
-	gmake install CC="${CC}"
+	gmake "-j$(sysctl -n hw.ncpu)" CC="${CC}"
+	gmake install "-j$(sysctl -n hw.ncpu)" CC="${CC}"
 
 	cd "${BASE_DIR}"
 	return
