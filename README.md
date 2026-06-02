@@ -45,6 +45,15 @@ The module **compat_linux** should also be enabled
     ./compat_tester.sh 
     ``` 
 
+#### Options:
+
+A number of options may be passed to the script, following the scheme: `./compat_tester.sh [OPTION]...`
+
+`--update`: Updates the ltp version to the latest release \
+`--force-reinstall`: Makes a clean ltp reinstall \
+`--syscall [NAME]`: Acts only in the passed syscall. Works both in compiling and testing \
+`--clean`: Clear the compiled binaries
+
 ## Where are logs stored
 
 The output of the tests will be shown in the terminal at runtime, additionally they are stored in the `syscall_logs/` dir. 
