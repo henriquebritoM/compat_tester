@@ -6,10 +6,7 @@
 # 	todo
 #
 # 	Requirements:
-# 	- autoconf
-# 	- automake
 # 	- gmake
-# 	- m4
 # 	- pkgconf
 # 	- suse_gcc12-15.5
 # 	- curl
