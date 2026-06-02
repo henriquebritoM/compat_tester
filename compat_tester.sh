@@ -71,28 +71,27 @@ is_empty_dir() {
 	[ -z "$(ls -A "$1")" ]
 }
 
-# clear only the binaries
-clean() {
-	rm -rf "${BINARIES_DIR:?}"/*
-}
-
 clean_logs() {
 	rm -rf "${LOGS_DIR:?}"/*
 }
 
+clean_binaries() {
+	rm -rf "${BINARIES_DIR:?}"/*
+}
+
 # Clear previous LTP installation
-clear_ltp() {
-	echo "Clearing local LTP files"
-
-	# clears some related vars
-	echo 0 > "${LTP_VERSION_FILE}"
-	LTP_CURRENT_VERSION=0
-
-	# clears the source code
+clean_ltp_source() {
 	rm -rf "${LTP_DIR:?}" 
 
-	# clears the binaries
-	clean
+	# Reset some related vars
+	echo 0 > "${LTP_VERSION_FILE}"
+	LTP_CURRENT_VERSION=0
+}
+
+# clear binaries and logs
+clean() {
+	clean_binaries 
+	clean_logs 
 }
 
 is_ltp_latest() {
@@ -112,7 +111,8 @@ is_ltp_latest() {
 install_ltp() {
 
 	# No point in installing without clearing residues
-	clear_ltp
+	clean_ltp_source
+	clean_binaries 
 
 	echo "Downloading the latest LTP release"
 
@@ -143,16 +143,6 @@ compile_tests() {
 	return
 }
 
-recreate_logs_dirs() { 
-
-	clean_logs 
-
-	for syscall in "${SYSCALL_DIR}"/*/; do
-		basename="$(basename "${syscall}")"
-		touch "${LOGS_DIR}/${basename}"
-	done
-}
-
 # Some tests requeire args to be passed in the cli
 # this funcion takes the name of the test and returns
 # its args
@@ -173,6 +163,9 @@ run_test_for_one_syscall() {
 	
 	bin_dir="${BINARIES_DIR}/testcases/bin"
 	output_file="${LOGS_DIR}/${basename}"
+
+	# Cleans output_file
+	echo "" > "${output_file}"
 
 	for syscall_test in "${bin_dir}/${basename}"*; do
 		
@@ -216,13 +209,15 @@ main() {
 	
 		if [ "${arg}" = "--update" ]; then
 			update_ltp
-		elif [ "${arg}" = "--force-reinstall" ]; then
+			return
+		elif [ "${arg}" = "--reinstall" ]; then
 			install_ltp
 		elif [ "${arg}" = "--syscall" ]; then
 			shift #consumes the arg
 			SYSCALL_COMPLEMENT="$1" # uses the next
 		elif [ "${arg}" = "--clean" ]; then
 			clean
+			return 
 		fi
 	
 		shift
@@ -236,7 +231,6 @@ main() {
 		compile_tests
 	fi
 
-	recreate_logs_dirs 
 	run_tests 
 }
 
