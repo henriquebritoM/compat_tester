@@ -136,8 +136,8 @@ compile_tests() {
 	cd "${LTP_DIR}"
 	
 	./configure CC="${CC}" --prefix="${BINARIES_DIR}"
-	gmake "-j$(sysctl -n hw.ncpu)" CC="${CC}"
-	gmake install "-j$(sysctl -n hw.ncpu)" CC="${CC}"
+	gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -j"$(sysctl -n hw.ncpu)" CC="${CC}"
+	gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -j"$(sysctl -n hw.ncpu)" CC="${CC}"
 
 	cd "${BASE_DIR}"
 	return
@@ -166,47 +166,66 @@ get_test_args() {
 	echo "${args}"
 }
 
+run_test_for_one_syscall() {
+	syscall="$1"
+
+	basename="$(basename "${syscall}")"
+	
+	bin_dir="${BINARIES_DIR}/testcases/bin"
+	output_file="${LOGS_DIR}/${basename}"
+
+	for syscall_test in "${bin_dir}/${basename}"*; do
+		
+		test_name="$(basename "${syscall_test}")"
+		args="$(get_test_args "${test_name}")"
+
+		{
+			echo "==================================================",
+			echo "    ${test_name}",
+			echo "==================================================",
+		} >> "${output_file}"
+
+		echo "syscall_test: ${syscall_test}"
+
+		if [ -z "${args}" ]; then
+			"${syscall_test}" 2>&1 | tee -a "${output_file}" || true
+		else 
+			"${syscall_test}" "${args}" 2>&1 | tee -a "${output_file}" || true
+		fi
+	done
+}
+
 # 
 run_tests() {
-
-	for syscall in "${SYSCALL_DIR}"/*/; do
-		basename="$(basename "${syscall}")"
-		
-		bin_dir="${BINARIES_DIR}/testcases/bin"
-		output_file="${LOGS_DIR}/${basename}"
-
-		for syscall_test in "${bin_dir}/${basename}"*; do
-			
-			test_name="$(basename "${syscall_test}")"
-			args="$(get_test_args "${test_name}")"
-
-			{
-				echo "==================================================",
-				echo "    ${test_name}",
-				echo "==================================================",
-			} >> "${output_file}"
-
-			echo "syscall_test: ${syscall_test}"
-
-			if [ -z "${args}" ]; then
-				"${syscall_test}" 2>&1 | tee -a "${output_file}" || true
-			else 
-				"${syscall_test}" "${args}" 2>&1 | tee -a "${output_file}" || true
-			fi
+	
+	if ! [ -z "${SYSCALL_COMPLEMENT}" ]; then
+		run_test_for_one_syscall "${SYSCALL_COMPLEMENT}"
+	else
+		for syscall in "${SYSCALL_DIR}"/*/; do
+			run_test_for_one_syscall "${syscall}"
 		done
-	done
+	fi
+
 }
 
 
 main() {
-	for arg in "$@"; do
+	
+	while [ "$#" -gt 0 ]; do
+		arg="$1"
+	
 		if [ "${arg}" = "--update" ]; then
 			update_ltp
 		elif [ "${arg}" = "--force-reinstall" ]; then
 			install_ltp
+		elif [ "${arg}" = "--syscall" ]; then
+			shift #consumes the arg
+			SYSCALL_COMPLEMENT="$1" # uses the next
 		elif [ "${arg}" = "--clean" ]; then
 			clean
 		fi
+	
+		shift
 	done
 
 	if is_empty_dir "${LTP_DIR}"; then 
