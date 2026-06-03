@@ -151,7 +151,7 @@ get_test_args() {
 		
 	runtest_file="${BINARIES_DIR}/runtest/syscalls"
 
-	args="$(grep "$1" "${runtest_file}" |
+	args="$(grep -E "^${1} " "${runtest_file}" |
 			sed "s/$1 *//g")"
 
 	echo "${args}"
@@ -168,7 +168,9 @@ run_test_for_one_syscall() {
 	# Cleans output_file
 	echo "" > "${output_file}"
 
-	for syscall_test in "${bin_dir}/${basename}"*; do
+	# Globs only the tests that have the syscall_name + number
+	# to avoid matching syscalls with similar name (like open & openat)
+	for syscall_test in "${bin_dir}/${basename}"[0-9]*; do
 		
 		test_name="$(basename "${syscall_test}")"
 		args="$(get_test_args "${test_name}")"
