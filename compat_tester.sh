@@ -131,13 +131,14 @@ update_ltp() {
 		install_ltp
 	fi
 }
-
+ 
 compile_tests() {
 	cd "${LTP_DIR}"
 	
 	./configure CC="${CC}" --prefix="${BINARIES_DIR}"
 	gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -j"$(sysctl -n hw.ncpu)" CC="${CC}"
-	gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -j"$(sysctl -n hw.ncpu)" CC="${CC}"
+	gmake install -C "${SYSCALL_DIR}/" -j"$(sysctl -n hw.ncpu)" CC="${CC}" # moves the syscalls bins
+	gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)" # moves the runtest
 
 	cd "${BASE_DIR}"
 	return
@@ -217,6 +218,9 @@ main() {
 			SYSCALL_COMPLEMENT="$1" # uses the next
 		elif [ "${arg}" = "--clean" ]; then
 			clean
+			return 
+		else 
+			echo "Invalid Option: '${arg}'"
 			return 
 		fi
 	
