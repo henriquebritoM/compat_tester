@@ -81,7 +81,7 @@ clean_binaries() {
 
 # Clear previous LTP installation
 clean_ltp_source() {
-	rm -rf "${LTP_DIR:?}" 
+	rm -rf "${LTP_DIR:?}/*"
 
 	# Reset some related vars
 	echo 0 > "${LTP_VERSION_FILE}"
@@ -95,28 +95,23 @@ clean() {
 }
 
 is_ltp_latest() {
-	echo "checking if the latest version of LTP is being used"
+	echo "=> checking if the latest version of LTP is being used"
 
 	# Not in the latest release
 	if [ "${LTP_CURRENT_VERSION}" != "${LTP_RELEASE}" ]; then
-		echo "Not in the latest version"
+		echo "- Not in the latest version"
 		return 1
 	fi
 
-	echo "Already up to date"
+	echo "- Already up to date"
 	return 0
 }
 
-# Installs LTP tests. Clears previous installation, if present
+# Installs LTP tests.
 install_ltp() {
 
-	# No point in installing without clearing residues
-	clean_ltp_source
-	clean_binaries 
+	echo "=> Downloading the latest LTP release"
 
-	echo "Downloading the latest LTP release"
-
-	mkdir "${LTP_DIR}"
 	echo "${LTP_RELEASE}" > "ltp_version"
 	curl -OLs "${LTP_URL}"
 	tar -xf "${LTP_RELEASE}.tar.xz" -C "${LTP_DIR}" --strip-components=1
@@ -126,19 +121,43 @@ install_ltp() {
 # updates LTP to the latest release
 update_ltp() {
 
-	echo "updating LTP files"
+	echo "=> updating LTP files"
 	if ! is_ltp_latest; then
 		install_ltp
 	fi
 }
+
+are_tests_compiled() {
+	
+	test_location="${BINARIES_DIR}/testcases/bin/${SYSCALL_COMPLEMENT}"
+
+	# We only need to find one test, as they are compiled all together
+	for t in "${test_location}"[0-9]*; do
+    	if [ -e "${t}" ]; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+compile_setup() {
+	cd "${LTP_DIR}"
+
+	./configure CC="${CC}" --prefix="${BINARIES_DIR}"
+	gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)" # moves the runtest
+}
  
 compile_tests() {
 	cd "${LTP_DIR}"
+	runtest_file="${BINARIES_DIR}/runtest/syscalls"
 	
-	./configure CC="${CC}" --prefix="${BINARIES_DIR}"
+	if ! [ -e "${runtest_file}" ]; then
+		compile_setup
+	fi
+	
 	gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -j"$(sysctl -n hw.ncpu)" CC="${CC}"
-	gmake install -C "${SYSCALL_DIR}/" -j"$(sysctl -n hw.ncpu)" CC="${CC}" # moves the syscalls bins
-	gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)" # moves the runtest
+	gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -j"$(sysctl -n hw.ncpu)" CC="${CC}" # moves the syscalls bins
 
 	cd "${BASE_DIR}"
 	return
@@ -206,21 +225,36 @@ run_tests() {
 
 
 main() {
+
+	should_clear_all=1
+	should_clear_bin=1
+	should_clear_ltp=1
+	should_compile=1
+	should_install=1
+	should_update=1
+	should_exit=1
 	
 	while [ "$#" -gt 0 ]; do
 		arg="$1"
 	
-		if [ "${arg}" = "--update" ]; then
-			update_ltp
-			return
+		if [ "${arg}" = "--clean" ]; then
+			should_clear_all=0
+			should_exit=0
+		elif [ "${arg}" = "--update" ]; then
+			should_update=0
+			should_exit=0
 		elif [ "${arg}" = "--reinstall" ]; then
-			install_ltp
+			should_clear_ltp=0
+			should_clear_bin=0
+			should_install=0
+			should_compile=0
+			should_exit=0
+		elif [ "${arg}" = "--compile" ]; then
+			should_clear_bin=0
+			should_compile=0
 		elif [ "${arg}" = "--syscall" ]; then
 			shift #consumes the arg
 			SYSCALL_COMPLEMENT="$1" # uses the next
-		elif [ "${arg}" = "--clean" ]; then
-			clean
-			return 
 		else 
 			echo "Invalid Option: '${arg}'"
 			return 
@@ -230,11 +264,41 @@ main() {
 	done
 
 	if is_empty_dir "${LTP_DIR}"; then 
+		should_install=0
+	fi
+
+	if ! are_tests_compiled; then 
+		should_compile=0
+	fi
+
+	if [ "${should_clear_all}" -eq 0 ]; then
+		clean
+		return
+	fi
+	
+	if [ "${should_clear_bin}" -eq 0 ]; then
+		clean_binaries
+	fi
+
+	if [ "${should_clear_ltp}" -eq 0 ]; then
+		clean_ltp_source
+	fi
+
+	if [ "${should_install}" -eq 0 ]; then
 		install_ltp
 	fi
 
-	if is_empty_dir "${BINARIES_DIR}"; then 
+	if [ "${should_update}" -eq 0 ]; then
+		update_ltp
+	fi
+
+	if [ "${should_compile}" -eq 0 ]; then
 		compile_tests
+	fi 
+
+	# Some options should not automatically run the tests
+	if [ "${should_exit}" -eq 0 ]; then
+		return
 	fi
 
 	run_tests 
