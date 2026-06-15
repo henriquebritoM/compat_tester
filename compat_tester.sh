@@ -35,6 +35,15 @@ LOGS_DIR="${BASE_DIR}/syscall_logs"
 # What compiler to use. Default searches for suse_gcc12-15.5
 CC="/emul/linux/usr/bin/gcc-12"
 
+# Some tests require a block device to be present.
+# The way LTP tries to get it does not work on NetBSD, so it is necessary 
+# to pass through a enviroment variable
+BLK_FILE="${BASE_DIR}/test.img"
+BLK_VND="vnd0"
+BLK_DEV="/dev/${BLK_VND}a"
+IS_BLK_MOUNTED=0
+export LTP_DEV="${BLK_DEV}"
+
 # If the script should recompile the tests
 FORCE_COMPILE=0
 
@@ -66,6 +75,31 @@ fi
 if ! [ -e "${LOGS_DIR}" ]; then
 	mkdir "${LOGS_DIR}"
 fi
+
+if ! [ -e "${BLK_FILE}" ]; then
+	dd if=/dev/zero of=test.img bs=1m count=512
+fi
+
+mount_ltp_dev() {
+
+	if ! [ "$(vnconfig -l ${BLK_DEV})" != "${BLK_DEV}: not in use" ]; then
+		# Stop early if the vnd target is already in use
+		echo "${BLK_DEV} is already in use. Cannot continue"
+		return
+	else
+		# Mount the vnd if the target is free
+		vnconfig "${BLK_VND}" "${BLK_FILE}"
+		IS_BLK_MOUNTED=1 # Mark that we mounted
+	fi
+}
+
+unmount_ltp_dev() {
+	# checks if the vnd was mounted by the script
+	if [ "${IS_BLK_MOUNTED}" -eq 1 ]; then
+		vnconfig -u "${BLK_VND}"
+		IS_BLK_MOUNTED=0
+	fi
+}
 
 is_empty_dir() {
 	[ -z "$(ls -A "$1")" ]
@@ -212,6 +246,8 @@ run_test_for_one_syscall() {
 
 # 
 run_tests() {
+
+	mount_ltp_dev 
 	
 	if ! [ -z "${SYSCALL_COMPLEMENT}" ]; then
 		run_test_for_one_syscall "${SYSCALL_COMPLEMENT}"
@@ -221,8 +257,8 @@ run_tests() {
 		done
 	fi
 
+	unmount_ltp_dev 
 }
-
 
 main() {
 
