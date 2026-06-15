@@ -288,6 +288,7 @@ main() {
 		elif [ "${arg}" = "--compile" ]; then
 			should_clear_bin=0
 			should_compile=0
+			should_exit=0
 		elif [ "${arg}" = "--syscall" ]; then
 			shift #consumes the arg
 			SYSCALL_COMPLEMENT="$1" # uses the next
