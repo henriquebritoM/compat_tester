@@ -152,15 +152,6 @@ install_ltp() {
 	rm "${LTP_RELEASE}.tar.xz" # no reason to keep the tar
 }
 
-# updates LTP to the latest release
-update_ltp() {
-
-	echo "=> updating LTP files"
-	if ! is_ltp_latest; then
-		install_ltp
-	fi
-}
-
 are_tests_compiled() {
 	
 	test_location="${BINARIES_DIR}/testcases/bin/${SYSCALL_COMPLEMENT}"
@@ -267,7 +258,6 @@ main() {
 	should_clear_ltp=1
 	should_compile=1
 	should_install=1
-	should_update=1
 	should_exit=1
 	
 	while [ "$#" -gt 0 ]; do
@@ -277,13 +267,16 @@ main() {
 			should_clear_all=0
 			should_exit=0
 		elif [ "${arg}" = "--update" ]; then
-			should_update=0
+			if ! is_ltp_latest; then
+				should_clear_bin=0
+				should_clear_ltp=0
+				should_install=0
+			fi
 			should_exit=0
 		elif [ "${arg}" = "--reinstall" ]; then
 			should_clear_ltp=0
 			should_clear_bin=0
 			should_install=0
-			should_compile=0
 			should_exit=0
 		elif [ "${arg}" = "--compile" ]; then
 			should_clear_bin=0
@@ -299,14 +292,6 @@ main() {
 	
 		shift
 	done
-
-	if is_empty_dir "${LTP_DIR}"; then 
-		should_install=0
-	fi
-
-	if ! are_tests_compiled; then 
-		should_compile=0
-	fi
 
 	if [ "${should_clear_all}" -eq 0 ]; then
 		clean
@@ -325,10 +310,6 @@ main() {
 		install_ltp
 	fi
 
-	if [ "${should_update}" -eq 0 ]; then
-		update_ltp
-	fi
-
 	if [ "${should_compile}" -eq 0 ]; then
 		compile_tests
 	fi 
@@ -336,6 +317,14 @@ main() {
 	# Some options should not automatically run the tests
 	if [ "${should_exit}" -eq 0 ]; then
 		return
+	fi
+
+	if is_empty_dir "${LTP_DIR}"; then 
+		install_ltp
+	fi
+
+	if ! are_tests_compiled; then 
+		compile_tests
 	fi
 
 	run_tests 
