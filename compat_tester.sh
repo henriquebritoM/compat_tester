@@ -32,6 +32,12 @@ BINARIES_DIR="${BASE_DIR}/bin"
 # Directory where logs from tested syscalls are stored
 LOGS_DIR="${BASE_DIR}/syscall_logs"
 
+# Controls the level of verbosity:
+# -1 = Silent. Only logs
+# 0  = Standard. Only displays only stderr and logs
+# 1  = Verbose.  Display stdin, stdout and logs 
+VERBOSITY=0
+
 # What compiler to use. Default searches for suse_gcc12-15.5
 CC="/emul/linux/usr/bin/gcc-12"
 
@@ -169,8 +175,24 @@ are_tests_compiled() {
 compile_setup() {
 	cd "${LTP_DIR}"
 
-	./configure CC="${CC}" --prefix="${BINARIES_DIR}"
-	gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)" # moves the runtest
+	case "${VERBOSITY}" in 
+		-1)
+			./configure CC="${CC}" --prefix="${BINARIES_DIR}" \
+				>/dev/null 2>&1
+			gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)" \
+				>/dev/null 2>&1
+			;;
+		0)
+			./configure CC="${CC}" --prefix="${BINARIES_DIR}" \
+				1>/dev/null
+			gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)" \
+				1>/dev/null
+			;;
+		1)
+			./configure CC="${CC}" --prefix="${BINARIES_DIR}"
+			gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)"
+			;;
+	esac
 }
  
 compile_tests() {
@@ -180,10 +202,28 @@ compile_tests() {
 	if ! [ -e "${runtest_file}" ]; then
 		compile_setup
 	fi
-	
-	gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -j"$(sysctl -n hw.ncpu)" CC="${CC}"
-	gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -j"$(sysctl -n hw.ncpu)" CC="${CC}" # moves the syscalls bins
 
+	case "${VERBOSITY}" in 
+		-1)
+			gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -k \
+				-j"$(sysctl -n hw.ncpu)" CC="${CC}" >/dev/null 2>&1
+			gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" \
+				-j"$(sysctl -n hw.ncpu)" CC="${CC}" >/dev/null 2>&1
+			;;
+		0)
+			gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -k \
+				-j"$(sysctl -n hw.ncpu)" CC="${CC}" 1>/dev/null
+			gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" \
+				-j"$(sysctl -n hw.ncpu)" CC="${CC}" 1>/dev/null
+			;;
+		1)
+			gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -k \
+				-j"$(sysctl -n hw.ncpu)" CC="${CC}"
+			gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" \
+				-j"$(sysctl -n hw.ncpu)" CC="${CC}"
+			;;
+	esac
+	
 	cd "${BASE_DIR}"
 	return
 }
@@ -227,11 +267,8 @@ run_test_for_one_syscall() {
 
 		echo "syscall_test: ${syscall_test}"
 
-		if [ -z "${args}" ]; then
-			"${syscall_test}" 2>&1 | tee -a "${output_file}" || true
-		else 
-			"${syscall_test}" "${args}" 2>&1 | tee -a "${output_file}" || true
-		fi
+		"${syscall_test}" ${args:+"${args}"} 2>&1 | tee -a "${output_file}" || true
+
 	done
 }
 
@@ -285,6 +322,10 @@ main() {
 		elif [ "${arg}" = "--syscall" ]; then
 			shift #consumes the arg
 			SYSCALL_COMPLEMENT="$1" # uses the next
+		elif [ "${arg}" = "--verbose" ]; then
+			VERBOSITY=1
+		elif [ "${arg}" = "--silent" ]; then
+			VERBOSITY=-1
 		else 
 			echo "Invalid Option: '${arg}'"
 			return 
