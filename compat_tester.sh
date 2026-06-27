@@ -258,6 +258,7 @@ run_test_for_one_syscall() {
 		
 		test_name="$(basename "${syscall_test}")"
 		args="$(get_test_args "${test_name}")"
+		set -- $args # word splitting is desired
 
 		{
 			echo "==================================================",
@@ -268,7 +269,7 @@ run_test_for_one_syscall() {
 
 		echo "syscall_test: ${syscall_test}"
 
-		"${syscall_test}" ${args:+"${args}"} 2>&1 | tee -a "${output_file}" || true
+		"${syscall_test}" "$@" 2>&1 | tee -a "${output_file}" || true
 
 	done
 }
