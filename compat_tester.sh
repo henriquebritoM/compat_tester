@@ -261,8 +261,9 @@ run_test_for_one_syscall() {
 
 		{
 			echo "==================================================",
-			echo "    ${test_name}",
+			echo "   TEST: ${test_name}",
 			echo "==================================================",
+			echo "",
 		} >> "${output_file}"
 
 		echo "syscall_test: ${syscall_test}"
