@@ -25,7 +25,7 @@ LTP_DIR="${BASE_DIR}/ltp"
 SYSCALL_DIR="${LTP_DIR}/testcases/kernel/syscalls"
 
 # Optional: Used to specify one syscalls subdirectory inside SYSCALL_DIR
-SYSCALL_COMPLEMENT=""
+SYSCALL_NAME=""
 
 # Directory where compiled tests will be placed
 BINARIES_DIR="${BASE_DIR}/bin"
@@ -160,7 +160,7 @@ install_ltp() {
 
 are_tests_compiled() {
 	
-	test_location="${BINARIES_DIR}/testcases/bin/${SYSCALL_COMPLEMENT}"
+	test_location="${BINARIES_DIR}/testcases/bin/${SYSCALL_NAME}"
 
 	# We only need to find one test, as they are compiled all together
 	for t in "${test_location}"[0-9]*; do
@@ -205,21 +205,21 @@ compile_tests() {
 
 	case "${VERBOSITY}" in 
 		-1)
-			gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -k \
+			gmake -C "${SYSCALL_DIR}/${SYSCALL_NAME}" -k \
 				-j"$(sysctl -n hw.ncpu)" CC="${CC}" >/dev/null 2>&1
-			gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" \
+			gmake install -C "${SYSCALL_DIR}/${SYSCALL_NAME}" \
 				-j"$(sysctl -n hw.ncpu)" CC="${CC}" >/dev/null 2>&1
 			;;
 		0)
-			gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -k \
+			gmake -C "${SYSCALL_DIR}/${SYSCALL_NAME}" -k \
 				-j"$(sysctl -n hw.ncpu)" CC="${CC}" 1>/dev/null
-			gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" \
+			gmake install -C "${SYSCALL_DIR}/${SYSCALL_NAME}" \
 				-j"$(sysctl -n hw.ncpu)" CC="${CC}" 1>/dev/null
 			;;
 		1)
-			gmake -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" -k \
+			gmake -C "${SYSCALL_DIR}/${SYSCALL_NAME}" -k \
 				-j"$(sysctl -n hw.ncpu)" CC="${CC}"
-			gmake install -C "${SYSCALL_DIR}/${SYSCALL_COMPLEMENT}" \
+			gmake install -C "${SYSCALL_DIR}/${SYSCALL_NAME}" \
 				-j"$(sysctl -n hw.ncpu)" CC="${CC}"
 			;;
 	esac
@@ -228,38 +228,38 @@ compile_tests() {
 	return
 }
 
-# Some tests requeire args to be passed in the cli
-# this funcion takes the name of the test and returns
-# its args
-get_test_args() {
-		
+# Gets the list of tests for a given syscall
+get_test_list() {
+	syscall_name="$1"
+
 	runtest_file="${BINARIES_DIR}/runtest/syscalls"
 
-	args="$(grep -E "^${1} " "${runtest_file}" |
-			sed "s/$1 *//g")"
+	# Globs only the tests that have the syscall_name + number + Space
+	# to avoid matching syscalls with similar name (like open & openat)
+	list="$(grep -E "^${syscall_name}[0-9_]* " "${runtest_file}")"
 
-	echo "${args}"
+	echo "${list}"
 }
 
 run_test_for_one_syscall() {
 	syscall="$1"
 
-	basename="$(basename "${syscall}")"
+	syscall_name="$(basename "${syscall}")"
 	
 	bin_dir="${BINARIES_DIR}/testcases/bin"
-	output_file="${LOGS_DIR}/${basename}"
+	output_file="${LOGS_DIR}/${syscall_name}"
 
 	# Cleans output_file
 	echo "" > "${output_file}"
 
-	# Globs only the tests that have the syscall_name + number
-	# to avoid matching syscalls with similar name (like open & openat)
-	for syscall_test in "${bin_dir}/${basename}"[0-9]*; do
-		
-		test_name="$(basename "${syscall_test}")"
-		args="$(get_test_args "${test_name}")"
-		set -- $args # word splitting is desired
+	test_list="$(get_test_list "${syscall_name}")"
 
+	# Iterate through the list of testcases. 
+	# Parses the informationg provided by runtest/syscalls
+	echo "${test_list}" | while read -r test_name test_bin test_args; do
+
+		set -- ${test_args} # word splitting is desired
+		
 		{
 			echo "==================================================",
 			echo "   TEST: ${test_name}",
@@ -267,21 +267,22 @@ run_test_for_one_syscall() {
 			echo "",
 		} >> "${output_file}"
 
-		echo "syscall_test: ${syscall_test}"
+		echo "syscall_test: ${test_bin}"
 
-		"${syscall_test}" "$@" 2>&1 | tee -a "${output_file}" || true
+		"${bin_dir}/${test_bin}" "$@" 2>&1 | tee -a "${output_file}" || true
 
 	done
 }
 
-# 
 run_tests() {
 
 	mount_ltp_dev 
 	
-	if ! [ -z "${SYSCALL_COMPLEMENT}" ]; then
-		run_test_for_one_syscall "${SYSCALL_COMPLEMENT}"
+	if ! [ -z "${SYSCALL_NAME}" ]; then
+		# User specified a syscall to test
+		run_test_for_one_syscall "${SYSCALL_NAME}"
 	else
+		# user did not tell which syscall to test. Test them all
 		for syscall in "${SYSCALL_DIR}"/*/; do
 			run_test_for_one_syscall "${syscall}"
 		done
@@ -323,7 +324,7 @@ main() {
 			should_exit=0
 		elif [ "${arg}" = "--syscall" ]; then
 			shift #consumes the arg
-			SYSCALL_COMPLEMENT="$1" # uses the next
+			SYSCALL_NAME="$1" # uses the next
 		elif [ "${arg}" = "--verbose" ]; then
 			VERBOSITY=1
 		elif [ "${arg}" = "--silent" ]; then
