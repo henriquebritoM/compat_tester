@@ -28,6 +28,8 @@ SYSCALL_COMPLEMENT=""
 
 # Directory where compiled tests will be placed
 BINARIES_DIR="${BASE_DIR}/bin"
+export LTPROOT="${BINARIES_DIR}"
+export PATH="${PATH}:${BINARIES_DIR}/testcases/bin"
 
 # Directory where logs from tested syscalls are stored
 LOGS_DIR="${BASE_DIR}/syscall_logs"
