@@ -10,6 +10,7 @@
 # 	- pkgconf
 # 	- suse_gcc12-15.5
 # 	- curl
+# 	- e2fsprogs (for ext* testing)
 # 	- module compat_linux enabled
 
 set -e
@@ -51,9 +52,6 @@ BLK_VND="vnd0"
 BLK_DEV="/dev/${BLK_VND}a"
 IS_BLK_MOUNTED=0
 export LTP_DEV="${BLK_DEV}"
-
-# If the script should recompile the tests
-FORCE_COMPILE=0
 
 # Release version of the tests
 LTP_URL=$(curl -s https://api.github.com/repos/linux-test-project/ltp/releases/latest | \
