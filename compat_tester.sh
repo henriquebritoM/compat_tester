@@ -178,18 +178,21 @@ compile_setup() {
 	case "${VERBOSITY}" in 
 		-1)
 			./configure CC="${CC}" --prefix="${BINARIES_DIR}" \
+				CFLAGS="-pthread" LDFLAGS="-static -L${LTP_DIR}/lib -Wl,--whole-archive -lpthread -Wl,--no-whole-archive" \
 				>/dev/null 2>&1
 			gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)" \
 				>/dev/null 2>&1
 			;;
 		0)
 			./configure CC="${CC}" --prefix="${BINARIES_DIR}" \
+				CFLAGS="-pthread" LDFLAGS="-static -L${LTP_DIR}/lib -Wl,--whole-archive -lpthread -Wl,--no-whole-archive" \
 				1>/dev/null
 			gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)" \
 				1>/dev/null
 			;;
 		1)
-			./configure CC="${CC}" --prefix="${BINARIES_DIR}"
+			./configure CC="${CC}" --prefix="${BINARIES_DIR}" \
+				CFLAGS="-pthread" LDFLAGS="-static -L${LTP_DIR}/lib -Wl,--whole-archive -lpthread -Wl,--no-whole-archive"
 			gmake install -C "${LTP_DIR}/runtest" -j"$(sysctl -n hw.ncpu)"
 			;;
 	esac
