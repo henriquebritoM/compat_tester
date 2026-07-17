@@ -15,11 +15,14 @@
 
 set -e
 
-# Directory where this script is located. Used as root for other paths.
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Directory from where the script is being called
+CALLING_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Directory where the script data is stored
+DATA_DIR="/var/db/compat_linux_test_project"
 
 # Directory where the LTP tests will be cloned
-LTP_DIR="${BASE_DIR}/ltp"
+LTP_DIR="${DATA_DIR}/ltp"
 
 # Base directory for the syscalls subdirectory inside ltp
 SYSCALL_DIR="${LTP_DIR}/testcases/kernel/syscalls"
@@ -28,12 +31,12 @@ SYSCALL_DIR="${LTP_DIR}/testcases/kernel/syscalls"
 SYSCALL_NAME=""
 
 # Directory where compiled tests will be placed
-BINARIES_DIR="${BASE_DIR}/bin"
+BINARIES_DIR="${DATA_DIR}/bin"
 export LTPROOT="${BINARIES_DIR}"
 export PATH="${PATH}:${BINARIES_DIR}/testcases/bin"
 
 # Directory where logs from tested syscalls are stored
-LOGS_DIR="${BASE_DIR}/syscall_logs"
+LOGS_DIR="${CALLING_DIR}/syscall_logs"
 
 # Controls the level of verbosity:
 # -1 = Silent. Only logs
@@ -47,7 +50,7 @@ CC="/emul/linux/usr/bin/gcc-12"
 # Some tests require a block device to be present.
 # The way LTP tries to get it does not work on NetBSD, so it is necessary 
 # to pass through a enviroment variable
-BLK_FILE="${BASE_DIR}/test.img"
+BLK_FILE="${DATA_DIR}/test.img"
 BLK_VND="vnd0"
 BLK_DEV="/dev/${BLK_VND}a"
 IS_BLK_MOUNTED=0
@@ -61,14 +64,14 @@ LTP_URL=$(curl -s https://api.github.com/repos/linux-test-project/ltp/releases/l
 # Latest release available for LTP
 LTP_RELEASE=$(echo "${LTP_URL}" | sed 's/https:.*\///; s/.tar.xz//')
 
-LTP_VERSION_FILE="${BASE_DIR}/ltp_version"
+LTP_VERSION_FILE="${DATA_DIR}/ltp_version"
 
 if ! [ -e "${LTP_VERSION_FILE}" ]; then
 	echo 0 > "${LTP_VERSION_FILE}"
 fi
 
 # Currently installed LTP version
-LTP_CURRENT_VERSION="$(cat ltp_version)"
+LTP_CURRENT_VERSION="$(cat ${LTP_VERSION_FILE})"
 
 if ! [ -e "${LTP_DIR}" ]; then
 	mkdir "${LTP_DIR}"
@@ -83,7 +86,7 @@ if ! [ -e "${LOGS_DIR}" ]; then
 fi
 
 if ! [ -e "${BLK_FILE}" ]; then
-	dd if=/dev/zero of=test.img bs=1m count=512
+	dd if=/dev/zero of="${DATA_DIR}"/test.img bs=1m count=512
 fi
 
 mount_ltp_dev() {
@@ -227,7 +230,7 @@ compile_tests() {
 			;;
 	esac
 	
-	cd "${BASE_DIR}"
+	cd "${DATA_DIR}"
 	return
 }
 
